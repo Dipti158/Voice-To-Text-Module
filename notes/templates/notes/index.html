@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice to Text</title>
+    <!-- Font to support multiple languages -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans', sans-serif;
+            margin: 20px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+        }
+        label {
+            font-weight: bold;
+        }
+        #controls {
+            margin: 20px 0;
+        }
+        #transcription {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 15px;
+            font-style: italic;
+            color: gray;
+            white-space: pre-wrap; /* Preserve line breaks in transcription */
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice to Text Converter</h1>
+    <div id="controls">
+        <label for="language">Select Language:</label>
+        <select id="language">
+            <option value="en-US">English</option>
+            <option value="hi-IN">Hindi</option>
+            <option value="gu-IN">Gujarati</option>
+        </select>
+        <br><br>
+        <button id="start">Start Recording</button>
+        <button id="stop" disabled>Stop Recording</button>
+    </div>
+    <div id="transcription">Ready to transcribe...</div>
+
+    <script>
+        let mediaRecorder;
+        const audioChunks = [];
+
+        // Start recording
+        document.getElementById('start').onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    sendAudio(blob);
+                    audioChunks.length = 0; // Clear the audio chunks
+                };
+
+                mediaRecorder.start();
+                document.getElementById('stop').disabled = false;
+                document.getElementById('start').disabled = true;
+                document.getElementById('transcription').innerText = 'Recording in progress...';
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                alert('Could not access the microphone. Please check your permissions.');
+            }
+        };
+
+        // Stop recording
+        document.getElementById('stop').onclick = () => {
+            mediaRecorder.stop();
+            document.getElementById('stop').disabled = true;
+            document.getElementById('start').disabled = false;
+            document.getElementById('transcription').innerText = 'Transcribing... Please wait.';
+        };
+
+        // Send audio to server
+        function sendAudio(blob) {
+            const formData = new FormData();
+            const language = document.getElementById('language').value; // Get selected language
+            formData.append('audio', blob, 'recording.webm');
+            formData.append('language', language); // Add language to the form data
+
+            fetch('/speech-to-text/', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Display the recognized text in the HTML element
+                    document.getElementById('transcription').innerText = data.text || 'No text recognized.';
+                })
+                .catch(error => {
+                    console.error('Error sending audio:', error);
+                    document.getElementById('transcription').innerText = 'Error occurred while transcribing. Please try again.';
+                });
+        }
+    </script>
+</body>
+</html> 
